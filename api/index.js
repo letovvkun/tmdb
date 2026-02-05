@@ -5,19 +5,35 @@ export const config = {
 export default async function handler(request) {
   const url = new URL(request.url);
 
-  // 1. Сначала убираем /api из начала пути, если оно там есть
+  // 1. Убираем префикс /api, если он есть
   if (url.pathname.startsWith('/api')) {
     url.pathname = url.pathname.replace(/^\/api/, '');
   }
 
-  // 2. Если путь начинается с /t/p/ — это картинка, идем на image.tmdb.org
+  // 2. Определяем, куда идем (картинки или API)
   if (url.pathname.startsWith('/t/p/')) {
     url.hostname = 'image.tmdb.org';
   } else {
-    // Иначе это запрос к API
     url.hostname = 'api.themoviedb.org';
   }
 
-  // Создаем новый запрос с правильным адресом
-  return fetch(new Request(url, request));
+  // 3. ВАЖНО: Создаем абсолютно новый запрос
+  // Мы НЕ копируем старый request целиком, чтобы не передать заголовок Host
+  const newRequest = new Request(url.toString(), {
+    method: request.method,
+    headers: {
+      // Передаем только самое важное. TMDB не любит лишние хедеры.
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+    }
+  });
+
+  // 4. Отправляем запрос
+  const response = await fetch(newRequest);
+
+  // 5. Добавляем заголовки, чтобы браузер не ругался на CORS
+  const newResponse = new Response(response.body, response);
+  newResponse.headers.set('Access-Control-Allow-Origin', '*');
+  
+  return newResponse;
 }
